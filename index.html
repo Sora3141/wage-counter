@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>秒給メーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+  /* Layout: one screen, a taxi-meter style readout — huge yen figure, time underneath, thin progress rail */
+  :root {
+    /* single light look: white ground, black type, in every viewer theme */
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --fg: #000000;
+    --muted: #555555;
+    --line: #dddddd;
+    --accent: #000000;
+    --accent-soft: #f3f3f3;
+    --num: #000000;
+    --font-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    --font-num: "Azeret Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: light;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-ui);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+  }
+  main { width: 100%; max-width: 1100px; }
+
+  /* ---------- start screen ---------- */
+  .setup {
+    max-width: 440px;
+    margin: 0 auto;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 32px 28px;
+    display: grid;
+    gap: 22px;
+  }
+  .setup h1 { margin: 0; font-size: 1.6rem; font-weight: 700; text-wrap: balance; }
+  .setup p.lead { margin: -12px 0 0; color: var(--muted); font-size: 0.95rem; }
+  .field { display: grid; gap: 8px; }
+  .field > span { font-size: 0.85rem; color: var(--muted); letter-spacing: 0.04em; }
+  .input-row { display: flex; align-items: baseline; gap: 10px; }
+  .input-row input {
+    flex: 1; min-width: 0;
+    font-family: var(--font-num); font-weight: 700; font-size: 1.9rem;
+    color: var(--num); background: transparent;
+    border: none; border-bottom: 2px solid var(--line);
+    padding: 4px 2px; outline: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .input-row input:focus { border-bottom-color: var(--accent); }
+  .input-row .unit { font-size: 1rem; color: var(--muted); white-space: nowrap; }
+  .time-row { display: flex; gap: 16px; }
+  .time-row .input-row { flex: 1; }
+  .preview {
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: grid; gap: 4px;
+    font-size: 0.9rem;
+  }
+  .preview b { font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .error { color: #c0392b; font-size: 0.88rem; margin: -8px 0 0; }
+
+  button {
+    font-family: var(--font-ui); font-weight: 700; cursor: pointer;
+    border-radius: 10px; border: 1px solid transparent;
+  }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .btn-start {
+    background: var(--accent); color: var(--panel);
+    font-size: 1.25rem; padding: 16px; letter-spacing: 0.2em;
+  }
+  .btn-start:hover { filter: brightness(1.08); }
+
+  /* ---------- meter screen ---------- */
+  .meter { display: grid; gap: clamp(20px, 4vh, 40px); text-align: center; }
+  .label {
+    font-size: clamp(0.85rem, 1.6vw, 1.05rem); color: var(--muted);
+    letter-spacing: 0.18em;
+  }
+  .money {
+    font-family: var(--font-num); font-weight: 800; color: var(--num);
+    font-variant-numeric: tabular-nums;
+    line-height: 1; white-space: nowrap;
+    font-size: clamp(3rem, 13vw, 11rem);
+    letter-spacing: -0.03em;
+  }
+  .money .yen { font-size: 0.5em; margin-right: 0.08em; color: var(--accent); }
+  .money .dec { font-size: 0.42em; color: var(--muted); }
+  .clock {
+    font-family: var(--font-num); font-weight: 700; color: var(--fg);
+    font-variant-numeric: tabular-nums; line-height: 1;
+    font-size: clamp(2rem, 7vw, 5.5rem);
+  }
+  .clock .of { font-size: 0.35em; color: var(--muted); font-weight: 500; margin-left: 0.4em; }
+  .rail {
+    height: 8px; border-radius: 4px; background: var(--line); overflow: hidden;
+    max-width: 760px; width: 100%; margin: 0 auto;
+  }
+  .rail > div { height: 100%; width: 0; background: var(--accent); transition: width 0.4s linear; }
+  .facts {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px;
+    color: var(--muted); font-size: 0.95rem;
+  }
+  .facts b { color: var(--fg); font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .done-badge {
+    justify-self: center;
+    background: var(--accent); color: var(--panel);
+    padding: 8px 20px; border-radius: 999px; font-weight: 700; letter-spacing: 0.1em;
+  }
+  .controls { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .controls button {
+    background: transparent; color: var(--fg); border-color: var(--line);
+    padding: 12px 22px; font-size: 1rem; min-width: 130px;
+  }
+  .controls button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .tick { animation: tick 0.35s ease-out; }
+  @keyframes tick { from { opacity: 0.55; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .tick { animation: none; }
+    .rail > div { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <form class="setup" id="setup" novalidate>
+    <h1>秒給メーター</h1>
+    <p class="lead">時給と働く時間を入れてスタート。1秒ごとにお金が増えていきます。</p>
+
+    <label class="field">
+      <span>時給</span>
+      <div class="input-row">
+        <input id="wage" type="number" inputmode="numeric" min="1" step="1" value="1200">
+        <span class="unit">円 / 時</span>
+      </div>
+    </label>
+
+    <div class="field">
+      <span>働く時間</span>
+      <div class="time-row">
+        <label class="input-row">
+          <input id="hours" type="number" inputmode="numeric" min="0" max="24" step="1" value="8">
+          <span class="unit">時間</span>
+        </label>
+        <label class="input-row">
+          <input id="minutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="0">
+          <span class="unit">分</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="preview" id="preview"></div>
+    <p class="error" id="error" hidden></p>
+
+    <button class="btn-start" type="submit">スタート</button>
+  </form>
+
+  <section class="meter" id="meter" hidden>
+    <div>
+      <div class="label">いまの稼ぎ</div>
+      <div class="money" id="money"><span class="yen">¥</span><span id="moneyInt">0</span><span class="dec" id="moneyDec">.00</span></div>
+    </div>
+    <div>
+      <div class="label">経過時間</div>
+      <div class="clock"><span id="clock">00:00:00</span><span class="of" id="clockOf">/ 08:00:00</span></div>
+    </div>
+    <div class="rail"><div id="bar"></div></div>
+    <div class="facts">
+      <span>秒給 <b id="perSec">0</b> 円</span>
+      <span>時給 <b id="perHour">0</b> 円</span>
+      <span>ゴール <b id="goal">0</b> 円</span>
+    </div>
+    <div class="done-badge" id="done" hidden>おつかれさまでした</div>
+    <div class="controls">
+      <button type="button" id="pause">一時停止</button>
+      <button type="button" id="back">最初に戻る</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const yenFmt = new Intl.NumberFormat("ja-JP");
+  const pad = n => String(n).padStart(2, "0");
+  const hms = s => `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+
+  let wage = 0, totalSec = 0, startedAt = 0, pausedTotal = 0, pausedAt = 0, timer = null, lastSec = -1, wakeLock = null;
+
+  function readInputs() {
+    const w = Number($("wage").value);
+    const h = Number($("hours").value || 0);
+    const m = Number($("minutes").value || 0);
+    return { w, sec: Math.round(h * 3600 + m * 60) };
+  }
+
+  function updatePreview() {
+    const { w, sec } = readInputs();
+    if (w > 0 && sec > 0) {
+      $("preview").innerHTML =
+        `秒給 <b>${(w / 3600).toFixed(3)}</b> 円 ・ 分給 <b>${(w / 60).toFixed(1)}</b> 円<br>` +
+        `ゴールで <b>${yenFmt.format(Math.floor(w * sec / 3600))}</b> 円`;
+    } else {
+      $("preview").textContent = "時給と時間を入れると秒給が出ます";
+    }
+  }
+  ["wage", "hours", "minutes"].forEach(id => $(id).addEventListener("input", updatePreview));
+  updatePreview();
+
+  function elapsedSec() {
+    const now = pausedAt || Date.now();
+    return Math.min(totalSec, Math.floor((now - startedAt - pausedTotal) / 1000));
+  }
+
+  function render() {
+    const s = elapsedSec();
+    if (s === lastSec) return;
+    lastSec = s;
+    const earned = wage * s / 3600;
+    const [i, d] = earned.toFixed(2).split(".");
+    $("moneyInt").textContent = yenFmt.format(Number(i));
+    $("moneyDec").textContent = "." + d;
+    $("clock").textContent = hms(s);
+    $("bar").style.width = (s / totalSec * 100) + "%";
+    const money = $("money");
+    money.classList.remove("tick"); void money.offsetWidth; money.classList.add("tick");
+    if (s >= totalSec) finish();
+  }
+
+  function finish() {
+    clearInterval(timer); timer = null;
+    $("done").hidden = false;
+    $("pause").hidden = true;
+    releaseWake();
+  }
+
+  async function requestWake() {
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) { wakeLock = null; }
+  }
+  function releaseWake() { try { wakeLock?.release(); } catch (e) {} wakeLock = null; }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && timer) { requestWake(); render(); }
+  });
+
+  $("setup").addEventListener("submit", e => {
+    e.preventDefault();
+    const { w, sec } = readInputs();
+    if (!(w > 0)) { showError("時給を1円以上で入れてください"); return; }
+    if (!(sec > 0)) { showError("働く時間を1分以上で入れてください"); return; }
+    $("error").hidden = true;
+
+    wage = w; totalSec = sec;
+    startedAt = Date.now(); pausedTotal = 0; pausedAt = 0; lastSec = -1;
+    $("perSec").textContent = (w / 3600).toFixed(3);
+    $("perHour").textContent = yenFmt.format(w);
+    $("goal").textContent = yenFmt.format(Math.floor(w * sec / 3600));
+    $("clockOf").textContent = "/ " + hms(sec);
+    $("done").hidden = true;
+    $("pause").hidden = false;
+    $("pause").textContent = "一時停止";
+
+    $("setup").hidden = true;
+    $("meter").hidden = false;
+    render();
+    timer = setInterval(render, 200);
+    requestWake();
+  });
+
+  function showError(msg) { $("error").textContent = msg; $("error").hidden = false; }
+
+  $("pause").addEventListener("click", () => {
+    if (pausedAt) {
+      pausedTotal += Date.now() - pausedAt; pausedAt = 0;
+      $("pause").textContent = "一時停止";
+      requestWake();
+    } else {
+      pausedAt = Date.now();
+      $("pause").textContent = "再開";
+      releaseWake();
+    }
+  });
+
+  $("back").addEventListener("click", () => {
+    clearInterval(timer); timer = null; releaseWake();
+    $("meter").hidden = true;
+    $("setup").hidden = false;
+  });
+</script>
+</body>
+</html>
